@@ -1,0 +1,31 @@
+[server]
+# Hot-reload on save during development while ignoring heavy data & git folders
+runOnSave = true
+fileWatcherType = "auto"
+folderWatchList = ["."]
+folderWatchBlacklist = ["Dataset", "Font", "__pycache__", ".git", ".venv", "venv", ".streamlit"]
+
+# Security & upload settings (raw Ookla quarterly parquet files are ~200 MB each)
+enableCORS = true
+enableXsrfProtection = true
+maxUploadSize = 2048
+maxMessageSize = 1024
+
+[browser]
+# Disable telemetry in production deployments
+gatherUsageStats = false
+
+[client]
+# Hide Streamlit developer toolbar & prevent backend tracebacks from leaking in UI
+toolbarMode = "minimal"
+showErrorDetails = "none"
+
+[runner]
+fastReruns = true
+
+[theme]
+base = "light"
+primaryColor = "#7c3aed"
+backgroundColor = "#d4ebff"
+secondaryBackgroundColor = "#eef7ff"
+textColor = "#0b2545"

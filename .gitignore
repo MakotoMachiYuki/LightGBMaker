@@ -1,0 +1,19 @@
+# Environment variables & secrets (never commit private keys)
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# OS / IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
