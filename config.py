@@ -20,7 +20,6 @@ ROOT_DIR = BASE_DIR.parent
 DATASET_DIR = BASE_DIR / "Dataset"
 LEGACY_DATASET_DIR = ROOT_DIR / "Dataset_2"
 WEBSITE_DIR = ROOT_DIR / "website"
-WEBSITE_DATASET_DIR = WEBSITE_DIR / "Dataset"
 FONT_DIR = BASE_DIR / "Font" if (BASE_DIR / "Font").exists() else WEBSITE_DIR / "Font"
 CSS_PATH = BASE_DIR / "style.css"
 ENV_PATH = BASE_DIR / ".env"

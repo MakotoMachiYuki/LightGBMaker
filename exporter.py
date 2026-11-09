@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import time
 import zipfile
-from pathlib import Path
 
 import joblib
 import numpy as np
@@ -125,26 +124,6 @@ def zip_bytes(files: dict[str, bytes]) -> bytes:
         for name, data in files.items():
             zf.writestr(name, data)
     return buf.getvalue()
-
-
-def save_to_workspace(files: dict[str, bytes], website_all: bool = False) -> list[str]:
-    """Write all artefacts to LightGBMaker/Dataset/ (and sync to Dataset_2/ & website/Dataset/ if present)."""
-    written = []
-    main_names = {cfg.MODEL_PKL_NAMES["main"], cfg.MODEL_BUNDLE_NAMES["main"], cfg.MODEL_TXT_NAMES["main"]}
-    model_names = set(cfg.MODEL_PKL_NAMES.values()) | set(cfg.MODEL_BUNDLE_NAMES.values()) | set(cfg.MODEL_TXT_NAMES.values())
-    targets = [(cfg.DATASET_DIR, lambda n: True)]
-    if cfg.LEGACY_DATASET_DIR.exists():
-        targets.append((cfg.LEGACY_DATASET_DIR, lambda n: True))
-    if cfg.WEBSITE_DATASET_DIR.exists():
-        targets.append((cfg.WEBSITE_DATASET_DIR, lambda n: n in main_names or (website_all and n in model_names)))
-    for target_dir, selector in targets:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        for name, data in files.items():
-            if selector(name):
-                p = Path(target_dir) / name
-                p.write_bytes(data)
-                written.append(str(p))
-    return written
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -372,35 +351,41 @@ def render_export_panel(pp, res: dict, rec: dict, ch: dict, key_prefix: str = "e
     import ui
 
     primary = rec["winner"]
-    ex = st.session_state.setdefault("exports", {})
     cache_tag = f"{id(res)}:{len(pp.df)}:{primary}"
-    if ex.get("tag") != cache_tag:
-        ex.clear()
-        ex["tag"] = cache_tag
-        ex["xlsx"] = excel_bytes(res, rec, primary, pp)
-        ex["files"] = model_files(res, primary)
+    required = ("xlsx", "files", "zip", "parquet", "csv")
+    ex = st.session_state.get("exports") or {}
+    if ex.get("tag") != cache_tag or any(k not in ex for k in required):
+        # Build into a fresh dict and commit only when complete, so an interrupted
+        # rerun never leaves a half-built cache behind.
+        new: dict = {}
+        new["xlsx"] = excel_bytes(res, rec, primary, pp)
+        new["files"] = model_files(res, primary)
         if pdf_available():
             pdf_ch = ch if ch else charts.build_pdf_charts(res)
-            ex["pdf"] = pdf_bytes(res, rec, primary, pdf_ch, pp)
-        bundle = dict(ex["files"])
-        bundle[cfg.EXCEL_EVAL_NAME] = ex["xlsx"]
-        if "pdf" in ex:
-            bundle[cfg.PDF_REPORT_NAME] = ex["pdf"]
-        ex["zip"] = zip_bytes(bundle)
+            new["pdf"] = pdf_bytes(res, rec, primary, pdf_ch, pp)
+        bundle = dict(new["files"])
+        bundle[cfg.EXCEL_EVAL_NAME] = new["xlsx"]
+        if "pdf" in new:
+            bundle[cfg.PDF_REPORT_NAME] = new["pdf"]
+        new["zip"] = zip_bytes(bundle)
 
         pq_disk = cfg.resolve_dataset_file("ookla_indonesia_only.parquet")
         csv_disk = cfg.resolve_dataset_file("ookla_indonesia_only.csv")
         if len(pp.df) == 608_990 and pq_disk.exists():
-            ex["parquet"] = pq_disk.read_bytes()
+            new["parquet"] = pq_disk.read_bytes()
         else:
-            ex["parquet"] = pp_mod.to_parquet_bytes(pp.df)
+            new["parquet"] = pp_mod.to_parquet_bytes(pp.df)
         if len(pp.df) == 608_990 and csv_disk.exists():
-            ex["csv"] = csv_disk.read_bytes()
+            new["csv"] = csv_disk.read_bytes()
         else:
-            ex["csv"] = pp_mod.to_csv_bytes(pp.df)
+            new["csv"] = pp_mod.to_csv_bytes(pp.df)
+
+        new["tag"] = cache_tag
+        st.session_state["exports"] = new
+        ex = new
 
     ui.section("Unduh Laporan & Model")
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     with c1:
         st.download_button(
             cfg.EXCEL_EVAL_NAME,
@@ -432,14 +417,6 @@ def render_export_panel(pp, res: dict, rec: dict, ch: dict, key_prefix: str = "e
             key=f"{key_prefix}_dl_zip",
             on_click="ignore",
         )
-    with c4:
-        if st.button("Simpan ke Workspace", type="primary", width="stretch", key=f"{key_prefix}_save_ws"):
-            payload = dict(ex["files"])
-            payload[cfg.EXCEL_EVAL_NAME] = ex["xlsx"]
-            if "pdf" in ex:
-                payload[cfg.PDF_REPORT_NAME] = ex["pdf"]
-            written = save_to_workspace(payload, website_all=False)
-            st.success(f"{len(written)} file berhasil disimpan ke Dataset/.")
 
     ui.section("Unduh Dataset Indonesia Bersih")
     d1, d2 = st.columns(2)
